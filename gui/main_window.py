@@ -4,7 +4,7 @@ import cv2
 from PySide6 import QtWidgets, QtCore
 
 from gui.image_view import ImageLabel
-from gui.widgets import NoWheelSlider, NoWheelSpinBox, NoWheelComboBox
+from gui.widgets import NoWheelSlider, NoWheelComboBox, WheelGuard
 from gui.histogram import HueHistogram, compute_h_hist
 from gui.backend import segment_hsv, suggest_range, clean_mask, region_stats
 
@@ -132,7 +132,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- preset + chọn màu ---
         self.combo = NoWheelComboBox()
         self.combo.activated.connect(self.on_preset_selected)
-        self.spin_radius = NoWheelSpinBox()
+        self.spin_radius = QtWidgets.QSpinBox()
         self.spin_radius.setRange(1, 30)
         self.spin_radius.setValue(5)
         self.spin_radius.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
@@ -150,13 +150,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- hậu xử lý ---
         self.chk_post = QtWidgets.QCheckBox("Làm sạch mask")
         self.chk_post.toggled.connect(self.update_result)
-        self.spin_k = NoWheelSpinBox()
+        self.spin_k = QtWidgets.QSpinBox()
         self.spin_k.setRange(1, 31)
         self.spin_k.setSingleStep(2)
         self.spin_k.setValue(3)
         self.spin_k.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
         self.spin_k.valueChanged.connect(self.update_result)
-        self.spin_area = NoWheelSpinBox()
+        self.spin_area = QtWidgets.QSpinBox()
         self.spin_area.setRange(0, 100000)
         self.spin_area.setValue(50)
         self.spin_area.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
@@ -205,6 +205,12 @@ class MainWindow(QtWidgets.QMainWindow):
         actions.addWidget(self._button("Lưu video", self.save_video))
         actions.addWidget(self._button("Đặt lại", self.reset, "danger"))
 
+        # ô số: chỉ nhận lăn chuột khi đang được chọn
+        self._wheel_guard = WheelGuard(lambda: getattr(self, "_scroll", None))
+        for sp in (self.spin_radius, self.spin_k, self.spin_area):
+            sp.installEventFilter(self._wheel_guard)
+            sp.setFocusPolicy(QtCore.Qt.StrongFocus)
+
         # chiều cao tối thiểu: cửa sổ nhỏ hơn mức này thì hiện thanh cuộn
         for card, h in ((card_thr, 280), (card_preset, 175), (card_post, 175),
                         (card_hist, 140), (card_stats, 160)):
@@ -236,7 +242,7 @@ class MainWindow(QtWidgets.QMainWindow):
         w.setObjectName("root")
         w.setLayout(root)
         w.setMinimumWidth(1000)
-        scroll = QtWidgets.QScrollArea()
+        scroll = self._scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         scroll.setWidget(w)
